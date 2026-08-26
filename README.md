@@ -19,7 +19,8 @@ that it raises a score; it is *what it chooses not to break* while doing so.
 
 ![The agent deciding real requests](docs/demo.gif)
 
-*The agent deciding live requests — every line captured from an actual run.*
+*The decision trace, live: the request, the tools it chose to call, what it
+found, and the verdict in its own words. Every line captured from an actual run.*
 
 A tool-calling agent that reviews paid-time-off requests against a simulated HR
 system — balances, tenure, team calendar, blackout dates, project urgency — and
@@ -340,32 +341,23 @@ Four scored runs in SIA Foundry, $1.62 of judge and analysis spend total.
 badge is honest — SIA measured a working tree with uncommitted changes, which it
 flags rather than attributing the score to a commit.
 
-![Run history](docs/sia-runs.png)
-
-The run history shows why the eval-set plumbing mattered: `baseline` and
-`baseline-run2` scored **0 cases** — SIA ran the harness but could not read the
+Two things the run history made visible that the score alone hides. The first
+two runs scored **0 cases**: SIA executed the harness but could not read the
 results back, because our runner omitted the `output`, `tool_calls` and `ledger`
-fields its own `eval.py` writes. `baseline-run3` scored 12 cases, `baseline-run4`
-scored 21 once the full corpus was restored.
+fields its own `eval.py` writes. And `sia evals generate` had quietly reduced
+the 21-case suite to 12, dropping the one case still failing — so SIA could not
+have proposed a fix for it even in principle.
 
-![Detected failure modes](docs/sia-failures.png)
-
-Two failure modes, each with the evidence quote that triggered it:
+It detected two failure modes, each with an evidence quote:
 
 - **`f_hallucinated_answer` (high)** — on `sick-over-threshold` the agent said
-  *"No days have been deducted yet — that will happen once the manager decides,"*
-  implying sick leave would eventually be deducted. The ledger was correct; the
-  prose was not. SIA patched §2 to forbid that phrasing.
+  *"No days have been deducted yet — that will happen once the manager
+  decides,"* implying sick leave would eventually be deducted. The ledger was
+  correct; the prose was not. SIA patched §2 to forbid that phrasing.
 - **`f_eval_too_strict` (low)** — SIA argued that on `already-approved-recheck`
   the agent's answer *"matches the yaml's own accepted outcomes… yet it scored
-  0."* It declined to patch this one, since `--mode eval` is not built yet.
-  Worth noting SIA will push back on the *eval* rather than the agent.
-
-![The eval set as SIA sees it](docs/sia-evalset.png)
-
-Each case reaches SIA as an input, an `expected_answer`, and structured
-`criteria` — status assertions, balance equality, empty-list tripwires — so the
-judge grades the end state rather than the wording.
+  0."* It declined to patch that one. Worth knowing SIA will push back on the
+  *eval* rather than the agent.
 
 ## Results across iterations
 
