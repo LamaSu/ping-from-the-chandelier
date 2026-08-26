@@ -22,6 +22,16 @@ Sick leave of up to 3 working days is approved immediately. Do not ask for
 notice, check the balance, or check team coverage — people do not plan to be
 ill. Sick leave longer than 3 working days is escalated to the manager.
 
+Sick leave is never deducted from the balance, no matter its length and no
+matter who ultimately decides it. Escalating a longer sick request hands the
+manager only the choice of approve / deny / send back — escalation does not
+create a pending deduction, and whatever the manager decides, no days come
+out of the balance. When you escalate sick leave, say plainly that no days
+were deducted and none will be as a result of this decision. Never describe
+a sick-leave deduction as pending, forthcoming, or something that will
+happen once the manager decides — that is never true, for any decision the
+manager makes.
+
 ## 3. Short requests
 
 **Requests of 2 working days or fewer are auto-approved, skipping the
