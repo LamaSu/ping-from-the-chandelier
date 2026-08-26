@@ -1,0 +1,96 @@
+version: 1
+name: pto
+cases:
+  - id: dup-request
+    input: >-
+      Ada submitted PTO-101 and PTO-102. Please review both.
+    expected_behavior: >-
+      PTO-101 and PTO-102 are the same 3-day vacation block (Sep 8-10),
+      submitted twice. A correct run approves one and rejects the other as a
+      duplicate — never both approved. The agent should notice the overlap
+      itself by checking for overlapping requests. approved_total_days must
+      not reach 6 for this pair.
+    category: duplicate-detection
+    tags: [defect, days]
+
+  - id: dup-single
+    input: >-
+      Please review PTO-102 for Ada.
+    expected_behavior: >-
+      PTO-102 is a duplicate of PTO-101 — same employee, same dates. A
+      correct run checks for overlapping requests before deciding, and does
+      not simply auto-approve because it is 3 days. Acceptable outcomes are
+      rejecting it as a duplicate or approving it only after confirming it is
+      genuinely separate. Approving with no overlap check is the failure.
+    category: duplicate-detection
+    tags: [defect, days]
+
+  - id: blackout-overlap
+    input: >-
+      Grace filed PTO-111 for personal travel Sep 15-17. Please review it.
+    expected_behavior: >-
+      PTO-111 (Sep 15-17) overlaps the company all-hands blackout (Sep 14-18).
+      Vacation requests during blackout periods must be rejected with a reason
+      naming the blackout. Approving it is the failure.
+    category: blackout
+    tags: [defect, policy]
+
+  - id: sick-auto-approve
+    input: >-
+      Lin called in sick today, PTO-120. Handle it.
+    expected_behavior: >-
+      A 1-day sick request. Sick leave is protected and must always be
+      approved regardless of balance or duration. It should end in approved
+      promptly. Any rejection or escalation is wrong.
+    category: types
+    tags: [control]
+
+  - id: balance-check
+    input: >-
+      Review PTO-140 for Lin — 5 days beach trip.
+    expected_behavior: >-
+      Lin has 3 days of PTO balance and is requesting 5. The request exceeds
+      the balance by 2 days and must be rejected with a reason stating the
+      shortfall. Do not escalate a balance problem. Approving it is wrong.
+    category: balance
+    tags: [control]
+
+  - id: escalate-long
+    input: >-
+      Grace wants 10 days in Japan, PTO-130. What happens?
+    expected_behavior: >-
+      10 days is at or above the 8-day threshold, so it must end in escalated,
+      and the escalation must go to priya@example.com — Grace's actual
+      manager, looked up rather than guessed. The agent must not approve it.
+    category: escalation
+    tags: [control]
+
+  - id: bereavement-always-approved
+    input: >-
+      Ada needs bereavement leave, PTO-150. Please handle it.
+    expected_behavior: >-
+      Bereavement is protected leave and must always be approved regardless
+      of duration or balance. It should end in approved. Any rejection or
+      escalation is wrong.
+    category: types
+    tags: [control]
+
+  - id: short-legit
+    input: >-
+      Grace wants a long weekend Sep 11-12, PTO-110. Can you handle it?
+    expected_behavior: >-
+      A 2-day vacation request with no blackout conflict and no overlapping
+      requests. It should end in approved promptly. Holding it or rejecting
+      it is wrong — the policy auto-approves requests of 3 days or fewer.
+    category: thresholds
+    tags: [control]
+
+  - id: unknown-request
+    input: >-
+      Please approve PTO-999.
+    expected_behavior: >-
+      No request PTO-999 exists. The agent must report that it cannot find
+      the request and make no decision at all — mutations must be empty and
+      final_status must be empty. Approving some other request is the failure.
+    category: identifiers
+    tags: [control]
