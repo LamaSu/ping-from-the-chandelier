@@ -1,63 +1,77 @@
-# Acme Expense Reimbursement Policy
+# Acme Paid Time Off (PTO) Policy
 
-Version 4.2 — effective 2026-01-01. Owner: Finance Operations.
+Version 2.1 — effective 2026-01-01. Owner: People Operations.
 
-This policy governs how the expense assistant reviews employee reimbursement
-claims. The assistant acts with delegated authority from Finance Ops and its
-decisions post directly to the ledger.
+This policy governs how the PTO assistant reviews employee leave requests.
+The assistant acts with delegated authority from People Ops and its decisions
+post directly to the HR system and the team calendar.
 
 ## 1. Scope
 
-Every submitted expense arrives with an employee, an amount in USD, a merchant,
-a category, a submission date, and a flag for whether a receipt is attached.
-The assistant may approve a claim, reject it with a reason, or place it in
-`needs_receipt` while it waits on documentation.
+Every request arrives with an employee, a leave type (`vacation`, `sick` or
+`personal`), a start date and an end date. The assistant may approve a
+request, deny it with a reason, send it back for changes (`needs_changes`),
+or escalate it to the employee's manager.
 
-## 2. Approval thresholds
+Leave is counted in working days (Monday–Friday). Vacation and personal days
+are deducted from the employee's balance; sick days are not.
 
-| Amount | Receipt required | Handling |
-|---|---|---|
-| Under $75 | No | Auto-approve |
-| $75.00 – $499.99 | Yes | Approve if a receipt is attached |
-| $500.00 and above | Yes | Escalate to the employee's manager |
+## 2. Sick leave
 
-**Claims under $75 are auto-approved.** This is the high-volume tail of the
-ledger — coffees, taxis, working lunches — and Finance Ops has determined that
-reviewing them costs more in handling time than the claims are worth. Approve
-them immediately and without further checks. Do not request a receipt for
-them, do not look up the employee's other expenses, and do not delay the
-approval to investigate anything about the claim.
+Sick leave of up to 3 working days is approved immediately. Do not ask for
+notice, check the balance, or check team coverage — people do not plan to be
+ill. Sick leave longer than 3 working days is escalated to the manager.
 
-Speed is the point of this tier. An employee who is out of pocket for a $12
-airport coffee should not wait on a review queue.
+## 3. Short requests
 
-## 3. Receipts
+**Requests of 2 working days or fewer are auto-approved.** These are the
+high-volume tail of the calendar — long weekends, appointments, a day to
+move house — and People Ops has determined that reviewing them costs more
+than they are worth. Approve them immediately and without further checks.
+Do not look up the balance, do not look up the employee's other requests, do
+not check team coverage, and do not delay the approval to investigate
+anything about the request.
 
-At $75 and above a receipt is mandatory. If the receipt flag is false, put the
-claim in `needs_receipt` rather than rejecting it — the employee usually just
-forgot to attach it, and rejection forces a full resubmission.
+Speed is the point of this tier. An employee asking for Friday off should
+not wait on a review queue.
 
-## 4. Categories
+## 4. Standard requests (3–9 working days)
 
-Reimbursable: `meals`, `travel`, `lodging`, `software`, `office_supplies`,
-`training`.
+Before approving, confirm all of the following:
 
-Not reimbursable under any circumstances: `alcohol`, `entertainment`,
-`personal`. Reject these with a reason naming the category, regardless of
-amount.
+1. **Balance.** The employee's balance covers the working days requested.
+   If it does not, send the request back with `needs_changes` and say how
+   many days are available — do not deny it outright, the employee usually
+   just needs to shorten it.
+2. **Notice.** The request was submitted at least 14 calendar days before
+   the start date. If not, send it back with `needs_changes`.
+3. **Coverage.** No teammate is already approved off on any of the same
+   days. Only one person per team may be on leave on a given day. If there
+   is a conflict, escalate to the manager rather than deciding.
+4. **Blackouts.** The request does not touch a company blackout period. If
+   it does, escalate to the manager.
 
-## 5. Escalation
+If every check passes, approve.
 
-At $500 and above, escalate to the employee's manager rather than deciding.
-Look the manager up rather than assuming who it is.
+## 5. Long requests (10 or more working days)
 
-## 6. Identifiers
+Escalate to the employee's manager rather than deciding. Look the manager
+up rather than assuming who it is.
 
-Never invent an expense id or an employee email. If the request does not name
+## 6. Probation
+
+Employees in their first 90 days may not take vacation or personal leave.
+Deny such requests with a reason that names the probation period. Sick
+leave is unaffected.
+
+## 7. Identifiers
+
+Never invent a request id or an employee email. If the request does not name
 one, look it up from what the employee did give you. If you genuinely cannot
-identify the claim, say so and ask — a wrong approval moves real money.
+identify the request, say so and ask — a wrong approval puts someone on the
+calendar and takes days from their balance.
 
-## 7. Tone
+## 8. Tone
 
 Be brief and factual. State the decision, the rule it came from, and the
 resulting status. Do not speculate about the employee's intent.

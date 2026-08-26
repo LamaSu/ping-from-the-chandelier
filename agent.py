@@ -1,16 +1,16 @@
-"""Acme Expense Assistant — a tool-calling agent that moves money.
+"""Acme PTO Assistant — a tool-calling agent that approves time off.
 
 Speaks the `sia` command-adapter contract: a JSON object on stdin, a JSON
 object on stdout.
 
-    echo '{"input": "Ada submitted E-201 and E-202, please review both."}' \
+    echo '{"input": "Ada filed PTO-301 and PTO-302, please review both."}' \
         | python3 agent.py
 
 Configure the model through the same proxy the Foundry API uses:
 
     export LITELLM_PROXY_URL=https://your-proxy
     export LITELLM_PROXY_KEY=sk-...
-    export AGENT_MODEL=azure_ai/claude-opus-4-8
+    export AGENT_MODEL=azure_ai/claude-haiku-4-5
 """
 import json
 import os
@@ -18,10 +18,10 @@ import sys
 
 import httpx
 
-import expenses
+import hr
 from prompts import SYSTEM
 
-MODEL = os.environ.get("AGENT_MODEL", "azure_ai/claude-opus-4-8")
+MODEL = os.environ.get("AGENT_MODEL", "azure_ai/claude-haiku-4-5")
 PROXY_URL = os.environ.get("LITELLM_PROXY_URL", "").strip().rstrip("/")
 # Stripped: a stray newline from `.env` would otherwise become part of the
 # Authorization header, which httpx refuses to send.
@@ -39,53 +39,58 @@ def _fn(name: str, description: str, properties: dict,
 
 
 TOOLS = [
-    _fn("lookup_expense", "Look up one expense claim by its id, e.g. E-201.",
-        {"expense_id": {"type": "string"}}, ["expense_id"]),
-    _fn("list_expenses",
-        "List an employee's claims, optionally filtered by status.",
+    _fn("lookup_request",
+        "Look up one PTO request by its id, e.g. PTO-301. Includes the "
+        "working-day count and how many days of notice were given.",
+        {"request_id": {"type": "string"}}, ["request_id"]),
+    _fn("lookup_employee",
+        "An employee's record: team, manager, start date, tenure, PTO "
+        "balance and whether they are on probation.",
+        {"employee_email": {"type": "string"}}, ["employee_email"]),
+    _fn("list_requests",
+        "List an employee's PTO requests, optionally filtered by status.",
         {"employee_email": {"type": "string"},
          "status": {"type": "string",
-                    "description": "submitted, approved, rejected, "
-                                   "needs_receipt or escalated"}},
+                    "description": "submitted, approved, denied, "
+                                   "needs_changes or escalated"}},
         ["employee_email"]),
-    _fn("find_similar_expenses",
-        "Other claims by the same employee at the same merchant within three "
-        "days, with their combined total.",
-        {"expense_id": {"type": "string"}}, ["expense_id"]),
+    _fn("check_coverage",
+        "Teammates already off (approved or pending) on the same days as a "
+        "request, and any blackout periods it touches.",
+        {"request_id": {"type": "string"}}, ["request_id"]),
     _fn("lookup_manager", "The manager an employee reports to.",
         {"employee_email": {"type": "string"}}, ["employee_email"]),
-    _fn("approve_expense",
-        "Approve a claim and pay the employee. This posts to the ledger.",
-        {"expense_id": {"type": "string"}}, ["expense_id"]),
-    _fn("reject_expense", "Reject a claim, with a reason.",
-        {"expense_id": {"type": "string"}, "reason": {"type": "string"}},
-        ["expense_id", "reason"]),
-    _fn("request_receipt", "Hold a claim until the employee attaches a receipt.",
-        {"expense_id": {"type": "string"}}, ["expense_id"]),
-    _fn("escalate_expense", "Send a claim to a manager to decide.",
-        {"expense_id": {"type": "string"}, "manager_email": {"type": "string"}},
-        ["expense_id", "manager_email"]),
+    _fn("approve_request",
+        "Approve a request. Deducts the days from the balance and puts the "
+        "leave on the team calendar.",
+        {"request_id": {"type": "string"}}, ["request_id"]),
+    _fn("deny_request", "Deny a request, with a reason.",
+        {"request_id": {"type": "string"}, "reason": {"type": "string"}},
+        ["request_id", "reason"]),
+    _fn("request_changes",
+        "Send a request back to the employee to adjust, with a reason.",
+        {"request_id": {"type": "string"}, "reason": {"type": "string"}},
+        ["request_id", "reason"]),
+    _fn("escalate_request", "Send a request to a manager to decide.",
+        {"request_id": {"type": "string"}, "manager_email": {"type": "string"}},
+        ["request_id", "manager_email"]),
 ]
 
 IMPLS = {
-    "lookup_expense": expenses.lookup_expense,
-    "list_expenses": expenses.list_expenses,
-    "find_similar_expenses": expenses.find_similar_expenses,
-    "lookup_manager": expenses.lookup_manager,
-    "approve_expense": expenses.approve_expense,
-    "reject_expense": expenses.reject_expense,
-    "request_receipt": expenses.request_receipt,
-    "escalate_expense": expenses.escalate_expense,
+    "lookup_request": hr.lookup_request,
+    "lookup_employee": hr.lookup_employee,
+    "list_requests": hr.list_requests,
+    "check_coverage": hr.check_coverage,
+    "lookup_manager": hr.lookup_manager,
+    "approve_request": hr.approve_request,
+    "deny_request": hr.deny_request,
+    "request_changes": hr.request_changes,
+    "escalate_request": hr.escalate_request,
 }
 
 
 def call_model(messages: list[dict], usage: list[int]) -> dict:
-    """One model call. Appends what it cost to `usage`.
-
-    The token count comes back on every response; keeping it is what puts
-    this agent on the tokens axis of the cost/accuracy curve. Throw it away
-    and SIA can only plot latency, a weaker proxy for money.
-    """
+    """One model call. Appends what it cost to `usage`."""
     response = httpx.post(
         f"{PROXY_URL}/v1/chat/completions",
         headers={"Authorization": f"Bearer {PROXY_KEY}"},
@@ -129,23 +134,18 @@ def answer(request: str) -> tuple[str, list[dict], list[int]]:
 
 
 def with_ledger(reply: str) -> str:
-    """Append what the run did to the ledger.
+    """Append what the run did to the HR system.
 
     The SIA judge is sent `output` and nothing else — not the tool calls — so
     an agent whose real effect is a state change has to say what that change
-    was, or the judge can only grade the prose. Every eval case here is scored
-    on this block.
+    was. Every eval case here is scored on this block.
     """
-    summary = expenses.ledger_summary()
-    return (f"{reply}\n\n--- LEDGER AFTER THIS REQUEST ---\n"
+    summary = hr.ledger_summary()
+    return (f"{reply}\n\n--- HR SYSTEM AFTER THIS REQUEST ---\n"
             f"{json.dumps(summary, indent=2, sort_keys=True)}")
 
 
 def main() -> int:
-    # Both, and by name. An empty key is the more confusing of the two to
-    # leave unchecked: it builds the header "Bearer " and httpx rejects the
-    # trailing space with `Illegal header value b'Bearer '`, which says
-    # nothing about which variable is missing.
     missing = [name for name, value in (("LITELLM_PROXY_URL", PROXY_URL),
                                         ("LITELLM_PROXY_KEY", PROXY_KEY))
                if not value.strip()]
@@ -167,8 +167,6 @@ def main() -> int:
     except httpx.HTTPError as e:
         print(json.dumps({"error": f"model call failed: {e}"}))
         return 1
-    # `tokens` is what SIA plots on the cost axis. Summed across the tool
-    # loop: one case is every call it took to answer, not just the last.
     print(json.dumps({"output": with_ledger(reply), "tool_calls": trace,
                       "tokens": sum(usage) if usage else None}))
     return 0

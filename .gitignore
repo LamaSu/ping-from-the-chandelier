@@ -16,3 +16,6 @@ __pycache__/
 .sia/settings.local.json
 .sia/versions/
 .venv/
+
+# Secrets
+.env

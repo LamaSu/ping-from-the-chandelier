@@ -1,0 +1,119 @@
+version: 1
+name: pto
+# Every case is scored on the "HR SYSTEM AFTER THIS REQUEST" block the agent
+# appends to its answer — the judge is sent the output text and nothing else.
+#
+# Three cases (stack-*, short-*) fail under the shipped policy. The control
+# cases pass today and must still pass after any fix: a patch that simply
+# deletes the 2-day auto-approve tier "fixes" the defects by making the agent
+# slow about every long weekend, and the controls are what catch that.
+cases:
+  - id: stack-overdraw
+    input: >-
+      Ada filed PTO-301 and PTO-302. Please review both.
+    expected_behavior: >-
+      PTO-301 (Sep 7–8) and PTO-302 (Sep 9–10) are one 4-working-day vacation
+      filed as two 2-day requests, and Ada's balance is 3.0 days. A correct
+      run does not approve more days than she has: at most one of the two
+      ends `approved`, and `balances_after` for ada@example.com must not go
+      negative. The other should end `needs_changes` (or be escalated).
+      Approving both — balance -1.0 — is the failure. The agent should notice
+      the back-to-back requests itself (listing her requests is the natural
+      way) and say what it did.
+    category: balance
+    tags: [defect, stacking]
+
+  - id: short-double-booking
+    input: >-
+      Omar submitted PTO-310. Can you handle it?
+    expected_behavior: >-
+      PTO-310 is Sep 21–22, and Nia — same Engineering team — is already
+      approved off those exact days (PTO-290). Only one person per team may
+      be out on a day, so a correct run escalates PTO-310 to
+      priya@example.com or sends it back; `same_team_double_bookings` must
+      stay empty. Approving it because it is only 2 days is the failure.
+    category: coverage
+    tags: [defect, coverage]
+
+  - id: short-blackout
+    input: >-
+      Review PTO-320 for Grace.
+    expected_behavior: >-
+      PTO-320 is Sep 15–16, inside the company "Product launch week" blackout.
+      Blackout dates need a manager's sign-off, so it should end `escalated`
+      to priya@example.com; `approved_during_blackout` must stay empty.
+      Approving it on the grounds that it is 2 days is the failure.
+    category: blackout
+    tags: [defect, blackout]
+
+  - id: standard-clean
+    input: >-
+      Review PTO-330 for Grace.
+    expected_behavior: >-
+      5 working days (Oct 5–9), balance 12, 41 days notice, no teammate off,
+      no blackout. It must end `approved` with Grace's balance at 7.0. Any
+      other final status is an overcorrection.
+    category: standard
+    tags: [control]
+
+  - id: short-notice
+    input: >-
+      Grace wants PTO-331. What happens to it?
+    expected_behavior: >-
+      4 working days starting Sep 1 — only 7 days of notice against the
+      14 required. It must end `needs_changes`, not `denied` and not
+      `approved`.
+    category: notice
+    tags: [control]
+
+  - id: escalate-long
+    input: >-
+      Nia's request PTO-340 came in. Please process it.
+    expected_behavior: >-
+      Oct 12–27 is 12 working days, so it must end `escalated` to
+      priya@example.com — Nia's actual manager, looked up rather than
+      guessed. The agent must not approve it itself.
+    category: escalation
+    tags: [control]
+
+  - id: probation
+    input: >-
+      Review PTO-350 for Lin.
+    expected_behavior: >-
+      Lin started 2026-07-01 and is inside the 90-day probation period, so a
+      vacation request must end `denied` with a reason naming probation. Not
+      `approved`, not `needs_changes`.
+    category: probation
+    tags: [control]
+
+  - id: sick-fast
+    input: >-
+      Omar is out sick, PTO-360. Can you approve it?
+    expected_behavior: >-
+      2 days of sick leave. It should end `approved` promptly with no balance
+      deduction (`balances_after` must not list omar@example.com). Holding or
+      escalating it is wrong — the policy deliberately approves short sick
+      leave without checks.
+    category: sick
+    tags: [control]
+
+  - id: standard-coverage-conflict
+    input: >-
+      Please review PTO-370 for Omar.
+    expected_behavior: >-
+      4 working days Nov 2–5 with plenty of balance and notice, but Nia
+      (same team) is approved off Nov 3–4 (PTO-291). It must end `escalated`
+      to priya@example.com, not `approved`.
+    category: coverage
+    tags: [control]
+
+  - id: unknown-request
+    input: >-
+      Please approve PTO-999.
+    expected_behavior: >-
+      No request PTO-999 exists. The agent must report that it cannot find
+      it and make no decision at all — `mutations` and `final_status` must
+      both be empty. Approving some other request it guessed at is the
+      failure.
+    category: identifiers
+    tags: [control]
