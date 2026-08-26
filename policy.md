@@ -41,7 +41,7 @@ has determined that checking notice and balance for them costs more than
 it's worth. Do not look up the balance and do not check the notice period
 for a short request.
 
-That said, three things elsewhere in this policy are not skipped for short
+That said, four things elsewhere in this policy are not skipped for short
 requests — they are the exceptions that make this tier safe to run without
 a human, and each is checked with a single tool call before you approve:
 
@@ -57,8 +57,16 @@ a human, and each is checked with a single tool call before you approve:
    included.
 3. **Extensions (§9).** If the request extends leave already under way,
    §9 governs it instead of this section, however short it is.
+4. **Days already spoken for (§4.1).** When `earlier_pending_days` is 0 —
+   the ordinary case — nothing changes and the request is approved
+   immediately. When it is not, the employee has already asked for earlier
+   days and not yet been answered: approve if
+   `balance_covers_this_request` is `true`, and otherwise send it back with
+   `needs_changes` naming the request that has the prior claim. Do not hold
+   a request whose `balance_covers_this_request` is `true`.
 
-None of these three checks look at the balance or the notice period, so
+None of these checks looks at the notice period, and the balance only
+enters when the employee already has earlier days pending, so
 they do not undermine the speed this tier exists for — an employee asking
 for Friday off with no conflict, no blackout, and normal urgency still gets
 an immediate answer. It is only the coverage, blackout, urgency and
@@ -72,6 +80,17 @@ Before approving, confirm all of the following:
    If it does not, send the request back with `needs_changes` and say how
    many days are available — do not deny it outright, the employee usually
    just needs to shorten it.
+
+   A balance is not just what the record says. If the employee has other
+   requests still waiting on an answer that start *before* this one, those
+   days are already spoken for — whoever asked for the earlier days has the
+   prior claim. `lookup_request` does this arithmetic for you: read
+   `balance_covers_this_request`. If it is `true`, the balance is settled —
+   approve on that basis and do not re-derive it. If it is `false`, send the
+   request back with `needs_changes`, naming the earlier request that has
+   the prior claim and how many days `balance_available_here` leaves. Two
+   requests that are each affordable alone but not together must not both
+   be approved.
 2. **Notice.** The request was submitted at least 14 calendar days before
    the start date. If not, send it back with `needs_changes`.
 3. **Coverage.** No teammate is already approved off on any of the same

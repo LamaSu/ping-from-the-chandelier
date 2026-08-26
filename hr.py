@@ -303,6 +303,30 @@ def _decide(request_id: str, status: str, note: str) -> dict:
 
 
 # --- read tools ------------------------------------------------------------
+def _earlier_pending(key: str, entry: dict) -> list[dict]:
+    """The employee's other undecided requests that start before this one and
+    would come out of the same balance.
+
+    A request is only affordable net of what the employee has already asked
+    for and not yet been told about. Whoever asked for the earlier days has
+    the prior claim on the balance.
+    """
+    start = date.fromisoformat(entry["start"])
+    out = []
+    for other_key, other in REQUESTS.items():
+        if other_key == key or other["employee"] != entry["employee"]:
+            continue
+        if other["status"] in DECIDED or other["type"] not in DEDUCTIBLE:
+            continue
+        if date.fromisoformat(other["start"]) >= start:
+            continue
+        out.append({"request_id": other_key, "start": other["start"],
+                    "end": other["end"], "status": other["status"],
+                    "working_days": _working_days(other["start"],
+                                                  other["end"])})
+    return sorted(out, key=lambda r: r["start"])
+
+
 def lookup_request(request_id: str) -> dict:
     """One request by id. An unknown id is an error, not an empty result."""
     found = _get(request_id)
@@ -310,10 +334,34 @@ def lookup_request(request_id: str) -> dict:
         return {"error": f"No request {request_id!r} exists."}
     key, entry = found
     notice = (date.fromisoformat(entry["start"]) - TODAY).days
-    return {"request_id": key,
-            **{k: v for k, v in entry.items() if k != "note"},
-            "working_days": _working_days(entry["start"], entry["end"]),
-            "notice_days": notice, "today": TODAY.isoformat()}
+    earlier = _earlier_pending(key, entry)
+    claimed = sum(r["working_days"] for r in earlier)
+    record = RECORDS[entry["employee"]]
+    balance = record["balance_days"]
+    tenure = _tenure_days(entry["employee"])
+    out = {"request_id": key,
+           **{k: v for k, v in entry.items() if k != "note"},
+           "working_days": _working_days(entry["start"], entry["end"]),
+           "notice_days": notice, "today": TODAY.isoformat(),
+           # Employee-level facts that override any request-level reasoning.
+           # They live here as well as on lookup_employee because an agent
+           # that can settle the balance from this call alone will stop
+           # calling lookup_employee — and probation would go unseen.
+           "on_probation": tenure < PROBATION_DAYS,
+           "project_urgency": record["project_urgency"],
+           "manager": record["manager"]}
+    if entry["type"] in DEDUCTIBLE:
+        out["balance_days"] = balance
+        out["earlier_pending_requests"] = earlier
+        out["earlier_pending_days"] = claimed
+        out["balance_available_here"] = round(balance - claimed, 2)
+        # Stated outright rather than left to be inferred. An agent asked to
+        # do this subtraction mid-decision gets it right most of the time,
+        # which is not good enough when the answer decides whether someone
+        # is paid.
+        out["balance_covers_this_request"] = (
+            out["balance_available_here"] >= out["working_days"])
+    return out
 
 
 def lookup_employee(employee_email: str) -> dict:
