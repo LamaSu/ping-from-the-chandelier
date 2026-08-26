@@ -216,3 +216,123 @@ visible mark.
   `same_team_double_bookings`, `approved_during_blackout` and
   `non_deductible_wrongly_deducted`. The judge only ever sees the agent's text,
   so the agent appends this block to every reply.
+
+## How the agent reasons
+
+The agent is a plain tool-calling loop (`agent.py`): read the request, call
+tools until it knows enough, then call exactly one decision tool and say which
+rule it applied. `policy.md` is mounted verbatim as the system prompt, so the
+reasoning is driven by a document a People Ops person could have written — not
+by code.
+
+Three real traces, captured from actual runs:
+
+**It works out what it has not been told.**
+
+```
+Fatima asked to extend her time off — PTO-381.
+  lookup_request → list_requests → check_current_leave → deny_request
+  found: on leave right now (PTO-380, 24–28 Aug), 3 working days still to run,
+         balance remaining 1.0, extension asks 2
+  "Fatima can resubmit with a shorter extension (1 working day only)."
+```
+
+Nobody gave it the number 1. It discovered she was mid-leave, then computed
+what she could still afford.
+
+**It refuses an arithmetic trap.**
+
+```
+Yuki filed PTO-400 for maternity leave.
+  lookup_request → lookup_manager → escalate_request
+  found: maternity, 61 working days, balance 20.0
+  "Maternity leave is a statutory entitlement and is never counted against the
+   PTO balance. Under policy section 7… No days have been deducted."
+```
+
+61 days against a 20-day balance is exactly the shape that invites a wrong
+denial. It cited the rule that overrides the balance and routed to the manager.
+
+**And when it fails, the trace shows why.**
+
+```
+Review PTO-320 for Grace.        (before SIA's patch)
+  lookup_request → approve_request          ← check_coverage never called
+  "PTO-320 approved."                        wrong: it is inside a blackout
+
+Review PTO-320 for Grace.        (after SIA's patch)
+  lookup_request → lookup_employee → check_coverage → escalate_request
+  "Escalated to Grace's manager, Priya, because the request overlaps the
+   Product launch week blackout period (Policy §4.4)."
+```
+
+The failure was not bad judgment — it was a policy that told the agent not to
+look. Same request, one rule rewritten, opposite outcome.
+
+## The eval suite
+
+21 cases in `evals/pto.yaml`. Each is an input plus a prose description of what
+a correct run *does*; an LLM judge reads only the agent's output, which is why
+the agent prints its end state. **Controls matter as much as defects** — a patch
+that fixes every defect by making the agent refuse everything also passes the
+defect cases, and the controls are what catch that.
+
+**Planted defects — 8/9 caught**
+
+- `stack-overdraw` — two requests, 4 days, a 3-day balance → don't approve both
+- `short-double-booking` — only 2 days, but a teammate is already off → escalate anyway
+- `short-blackout` — only 2 days, but inside launch week → escalate anyway
+- `sick-over-threshold` — the sick run is longer than the request on file → fix the dates, then escalate
+- `extension-overdraw` — one day left, asks for two → don't approve
+- `maternity-not-deducted` — 61 days against a 20-day balance → never deny on balance
+- `urgency-critical-standard` — critical project → the manager decides
+- `urgency-critical-short` — only 2 days, but a critical project → escalate anyway
+- `stack-reverse-order` — a sibling request is still pending → check it before approving ⟵ **still failing**
+
+**Controls — 12/12 holding**
+
+- `standard-clean` — five clean days, everything fine → approve
+- `short-notice` — only 7 days' notice where 14 are required → send back, don't deny
+- `escalate-long` — twelve working days → the manager decides
+- `probation` — 55 days in, under the 90-day bar → deny
+- `sick-fast` — two sick days → approve at once, deduct nothing
+- `standard-coverage-conflict` — a teammate is already off those days → escalate
+- `unknown-request` — PTO-999 doesn't exist → change nothing at all
+- `cross-team-overlap` — the overlap is on a different team → still approve
+- `balance-exactly-covers` — two days against a 3-day balance → approve, don't over-hedge
+- `already-approved-recheck` — already approved → don't pay it twice
+- `extension-affordable` — an extension he can actually afford → approve
+- `urgency-normal-standard` — normal project → urgency changes nothing
+
+Four of these are explicit traps for a lazy fix: `cross-team-overlap`,
+`balance-exactly-covers`, `extension-affordable` and `urgency-normal-standard`
+all break if a patch "solves" the defects by escalating everything or refusing
+every extension.
+
+## Results across iterations
+
+Every row is a real scored run. The suite grew from 15 to 21 cases at run 2, so
+compare the rate rather than the raw count.
+
+| # | Iteration | Overall | Controls | Defects | What changed |
+|---|---|---|---|---|---|
+| 1 | baseline | 8/15 · **53%** | 8/10 | 0/5 | first scored run of the agent |
+| 2 | 4 hand fixes | 17/21 · **81%** | 12/12 | 5/9 | `deducted_days` accounting, a prompt rule that a stated decision must be a tool call, and the missing `amend_request` tool; suite grew to 21 |
+| 3 | SIA patch p1 | 20/21 · **95%** | 12/12 | 8/9 | SIA rewrote §3 — kept the balance/notice skip, carved out coverage, urgency and extensions |
+| 4 | SIA round 2 | 20/21 · **95%** | 12/12 | 8/9 | SIA fixed a sick-leave narration bug in §2; no score change, the ledger was already right |
+
+Two of the four failures fixed at step 2 were **not agent faults at all** — one
+was ambiguous accounting the judge misread, one was an eval written against a
+capability (`amend_request`) that did not exist yet.
+
+**What SIA contributed.** Step 3 is the one that matters. Given four failing
+cases that all trace to the same §3 loophole, the obvious fix is to delete the
+2-day fast-approve tier — which clears every defect and breaks four controls.
+SIA did not. It kept the balance and notice skip that makes the tier fast and
+added only the three checks that make it safe. Zero controls regressed.
+
+**Still open.** `stack-reverse-order` needs the agent to reason about *another
+pending request* rather than look something up, which is why the §3 fix did not
+reach it. SIA classified it as `eval_too_strict` rather than proposing a patch —
+a call worth arguing with, since approving PTO-302 while PTO-301 is pending
+really does commit 4 days against a 3-day balance.
