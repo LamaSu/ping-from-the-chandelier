@@ -99,6 +99,14 @@ sia status                   # what exists and what to do next
 sia evals run
 ```
 
+`sia evals run` shells out to `harness/run_evals.py` (set as `eval_command`),
+which runs each case in its own agent process and scores it with an LLM judge,
+writing `eval_results.jsonl`. It re-execs itself under `.venv` if the
+interpreter `python` resolves to lacks the dependencies, so a bare `python`
+on PATH is fine.
+
+Both the agent and the judge need `LITELLM_PROXY_URL` / `LITELLM_PROXY_KEY`.
+
 `.sia/config.toml` sets `questions_file = "evals/pto.yaml"`, so SIA reads the
 handwritten suite in this repo rather than synthesizing its own. Add cases
 there — and read the "Controls matter as much as defects" note in
@@ -141,6 +149,7 @@ real protection.
 | `prompts.py` | thin wrapper that mounts `policy.md` as the system prompt |
 | `evals/pto.yaml` | the eval suite — 21 cases |
 | `CONTRACT.md` | what `sia evals run` requires of `agent.py` |
+| `harness/run_evals.py` | the eval runner SIA shells out to; writes `eval_results.jsonl` |
 | `tests/test_policy_oracle.py` | credential-free check that every eval case is satisfiable |
 
 ## The HR system

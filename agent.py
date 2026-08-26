@@ -66,6 +66,14 @@ TOOLS = [
         {"employee_email": {"type": "string"}}, ["employee_email"]),
     _fn("lookup_manager", "The manager an employee reports to.",
         {"employee_email": {"type": "string"}}, ["employee_email"]),
+    _fn("amend_request",
+        "Correct the dates on a request that has not been decided yet, when "
+        "the employee asks for a span the request on file does not cover. "
+        "Amend first, then decide against the corrected length.",
+        {"request_id": {"type": "string"},
+         "start": {"type": "string", "description": "ISO date, e.g. 2026-09-01"},
+         "end": {"type": "string", "description": "ISO date, e.g. 2026-09-05"},
+         "reason": {"type": "string"}}, ["request_id"]),
     _fn("approve_request",
         "Approve a request. Deducts the days from the balance and puts the "
         "leave on the team calendar.",
@@ -89,6 +97,7 @@ IMPLS = {
     "check_coverage": hr.check_coverage,
     "check_current_leave": hr.check_current_leave,
     "lookup_manager": hr.lookup_manager,
+    "amend_request": hr.amend_request,
     "approve_request": hr.approve_request,
     "deny_request": hr.deny_request,
     "request_changes": hr.request_changes,

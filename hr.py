@@ -284,14 +284,22 @@ def _decide(request_id: str, status: str, note: str) -> dict:
     entry["status"] = status
     entry["note"] = note
     record = RECORDS[entry["employee"]]
-    if status == "approved" and entry["type"] in DEDUCTIBLE:
-        record["balance_days"] = round(record["balance_days"] - days, 2)
+    deducted = days if (status == "approved"
+                        and entry["type"] in DEDUCTIBLE) else 0
+    if deducted:
+        record["balance_days"] = round(record["balance_days"] - deducted, 2)
+    # `deducted_days` is stated explicitly because `balance_after` alone is
+    # ambiguous: for non-deductible leave it is the *unchanged* balance, and
+    # a reader (human or judge) can mistake it for a deduction that happened.
     MUTATIONS.append({"request_id": key, "employee": entry["employee"],
                       "from": before, "to": status, "working_days": days,
+                      "leave_type": entry["type"], "deducted_days": deducted,
+                      "deductible": entry["type"] in DEDUCTIBLE,
                       "note": note,
                       "balance_after": record["balance_days"]})
     return {"request_id": key, "status": status, "note": note,
-            "working_days": days, "balance_after": record["balance_days"]}
+            "working_days": days, "deducted_days": deducted,
+            "balance_after": record["balance_days"]}
 
 
 # --- read tools ------------------------------------------------------------
@@ -407,6 +415,48 @@ def lookup_manager(employee_email: str) -> dict:
 
 
 # --- mutating tools --------------------------------------------------------
+def amend_request(request_id: str, start: str = "", end: str = "",
+                  reason: str = "") -> dict:
+    """Correct the dates on a request that has not been decided yet.
+
+    An employee who asks for more days than the request on file covers — a
+    sick note that turns out to run a week, leave they want to extend — needs
+    the request itself moved before it can be judged, otherwise the decision
+    is made against the wrong length.
+    """
+    found = _get(request_id)
+    if found is None:
+        return {"error": f"No request {request_id!r} exists."}
+    key, entry = found
+    if entry["status"] in DECIDED:
+        return {"error": f"{key} is already {entry['status']} and its dates "
+                         f"cannot be changed."}
+    try:
+        new_start = start.strip() or entry["start"]
+        new_end = end.strip() or entry["end"]
+        if date.fromisoformat(new_end) < date.fromisoformat(new_start):
+            return {"error": "end is before start."}
+    except ValueError:
+        return {"error": "dates must be ISO format, e.g. 2026-09-01."}
+    before = {"start": entry["start"], "end": entry["end"],
+              "working_days": _working_days(entry["start"], entry["end"])}
+    entry["start"], entry["end"] = new_start, new_end
+    after_days = _working_days(new_start, new_end)
+    MUTATIONS.append({"request_id": key, "employee": entry["employee"],
+                      "from": entry["status"], "to": entry["status"],
+                      "working_days": after_days,
+                      "leave_type": entry["type"], "deducted_days": 0,
+                      "deductible": entry["type"] in DEDUCTIBLE,
+                      "note": f"dates amended {before['start']}..{before['end']}"
+                              f" -> {new_start}..{new_end}"
+                              + (f": {reason.strip()}" if reason.strip() else ""),
+                      "balance_after": RECORDS[entry["employee"]]["balance_days"]})
+    return {"request_id": key, "was": before,
+            "now": {"start": new_start, "end": new_end,
+                    "working_days": after_days},
+            "status": entry["status"]}
+
+
 def approve_request(request_id: str) -> dict:
     """Approve a request. Deducts vacation/personal days from the balance and
     puts the leave on the team calendar."""
@@ -479,6 +529,5 @@ def ledger_summary() -> dict:
             and RECORDS[m["employee"]]["project_urgency"] == "critical"],
         "non_deductible_wrongly_deducted": [
             m["request_id"] for m in MUTATIONS
-            if REQUESTS[m["request_id"]]["type"] in NON_DEDUCTIBLE
-            and m["balance_after"] != EMPLOYEES[m["employee"]]["balance_days"]],
+            if m["leave_type"] in NON_DEDUCTIBLE and m["deducted_days"]],
     }

@@ -96,14 +96,24 @@ send it back with `needs_changes` and say how many days are actually
 available. The employee is already out of the office, so an extension that
 overdraws the balance is the one mistake that cannot be walked back.
 
-## 10. Identifiers
+## 10. Correcting the dates on a request
+
+If the employee asks for a span the request on file does not cover — a sick
+note that turns out to run a week, days added to leave already filed — amend
+the request to the dates they actually need *before* deciding it, and then
+judge it on the corrected length. Deciding the old dates and describing the
+new ones leaves the record wrong.
+
+Dates can only be corrected while the request is still undecided.
+
+## 11. Identifiers
 
 Never invent a request id or an employee email. If the request does not name
 one, look it up from what the employee did give you. If you genuinely cannot
 identify the request, say so and ask — a wrong approval puts someone on the
 calendar and takes days from their balance.
 
-## 11. Tone
+## 12. Tone
 
 Be brief and factual. State the decision, the rule it came from, and the
 resulting status. Do not speculate about the employee's intent.

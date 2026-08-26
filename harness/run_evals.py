@@ -22,8 +22,35 @@ import pathlib
 import subprocess
 import sys
 
-import httpx
-import yaml
+# `eval_command` in .sia/config.toml is a plain `python harness/run_evals.py`
+# so it stays cross-platform, but the interpreter that resolves to may not be
+# the one with this repo's dependencies installed. Re-exec under the project
+# venv if that is the case. The guard variable stops it looping.
+def _reexec_under_venv() -> None:
+    if os.environ.get("_PTO_HARNESS_REEXEC"):
+        return                                  # already tried; fall through
+    root = pathlib.Path(__file__).resolve().parent.parent
+    for candidate in (root / ".venv" / "bin" / "python",
+                      root / ".venv" / "Scripts" / "python.exe"):
+        if candidate.exists() and candidate.resolve() != pathlib.Path(sys.executable).resolve():
+            env = dict(os.environ, _PTO_HARNESS_REEXEC="1")
+            os.execve(str(candidate), [str(candidate), *sys.argv], env)
+
+
+try:
+    import httpx
+    import yaml
+except ModuleNotFoundError:
+    _reexec_under_venv()
+    try:
+        import httpx
+        import yaml
+    except ModuleNotFoundError as exc:      # pragma: no cover - setup error
+        sys.stderr.write(
+            f"harness: missing dependency {exc.name!r}. Install them with:\n"
+            f"  .venv/bin/pip install -r requirements.txt\n"
+            f"(running under {sys.executable})\n")
+        raise SystemExit(1)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 QUESTIONS = ROOT / "evals" / "pto.yaml"

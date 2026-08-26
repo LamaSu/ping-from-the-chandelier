@@ -84,7 +84,7 @@ otlp_port = 4318
 # If this repo already has its own eval suite, name it here and SIA
 # will read that instead of generating a corpus of its own.
 questions_file = "evals/pto.yaml"
-eval_command = ""
+eval_command = "python harness/run_evals.py"
 run_command = ""
 # Superseded by .sia/settings.json, which says the same thing and
 # more: rules like "Bash(npm run test:*)", per-path rules, and a
