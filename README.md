@@ -2,6 +2,8 @@
 
 *Built at the **AWS × SIA hackathon**.*
 
+[![evals](https://github.com/msoliman6/ping-from-the-chandelier/actions/workflows/evals.yml/badge.svg)](https://github.com/msoliman6/ping-from-the-chandelier/actions/workflows/evals.yml)
+
 **An AI agent finds another agent's bugs and writes the patch. No human writes the fix.**
 
 The agent under test approves time-off requests. It reads employee records —

@@ -1,0 +1,43 @@
+name: evals
+
+# The oracle test needs no model credentials — it drives hr.py to the end
+# state each eval case calls correct and asserts the invariants that case
+# names. That makes it safe to run on every push, unlike the full suite.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  oracle:
+    name: eval suite is satisfiable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Every eval case reachable and self-consistent
+        run: python tests/test_policy_oracle.py
+
+      - name: Agent and HR system import cleanly
+        run: |
+          python - <<'PY'
+          import agent, hr, inspect
+          names = {t["function"]["name"] for t in agent.TOOLS}
+          assert names == set(agent.IMPLS), names ^ set(agent.IMPLS)
+          for t in agent.TOOLS:
+              f = t["function"]
+              sig = set(inspect.signature(agent.IMPLS[f["name"]]).parameters)
+              assert set(f["parameters"]["required"]) <= sig, f["name"]
+              assert set(f["parameters"]["properties"]) <= sig, f["name"]
+          print(f"{len(names)} tools, schemas match implementations")
+          print(f"{len(hr.EMPLOYEES)} employees, {len(hr.SEED)} requests")
+          PY
