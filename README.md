@@ -1,17 +1,19 @@
-# PTO approver agent
+# Self-improving agents: a PTO approver that fixes itself
 
 *Built at the **AWS × SIA hackathon**.*
 
-## Self-improving agents
+An agent that is measured against an eval suite, has its own failure modes
+diagnosed, and gets patched — **by another agent**, without a human writing the
+fix. The agent under test reviews paid-time-off requests; the interesting part
+is the loop around it.
 
-This repo is a worked example of a **self-improving agent loop**: an agent that
-is measured against an eval suite, has its own failure modes diagnosed, and gets
-patched — by another agent — without a human writing the fix.
+## The loop
 
 The loop is `run → detect → propose → apply → re-run`, driven by
 [SIA Foundry](https://sia.hexo.ai). SIA reads the agent's source and its scored
-run, classifies what went wrong, and writes a diff. The interesting part is not
-that it raises a score; it is *what it chooses not to break* while doing so.
+run, classifies what went wrong, and writes a diff. What makes it worth
+watching is not that it raises a score — it is *what it chooses not to break*
+while doing so.
 
 > **Paper:** [SIA: Self Improving AI with Harness & Weight Updates](https://arxiv.org/abs/2605.27276)
 > (Hebbar et al., 2026) · [arXiv:2605.27276](https://arxiv.org/pdf/2605.27276) ·
