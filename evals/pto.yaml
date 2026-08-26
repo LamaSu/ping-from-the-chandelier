@@ -200,3 +200,88 @@ cases:
       fail here.
     category: balance
     tags: [defect, stacking]
+
+  # ---------------------------------------------------------------------
+  # Added: extension-while-on-leave, maternity, and project urgency.
+  # The short-request tier in policy §3 tells the agent not to look
+  # anything up; §8 and §9 both require a lookup for requests that fall
+  # inside that tier. That conflict is what these cases probe.
+  # ---------------------------------------------------------------------
+
+  - id: extension-overdraw
+    input: >-
+      Fatima asked to extend her time off — PTO-381. Can you handle it?
+    expected_behavior: >-
+      Fatima is on leave right now (PTO-380, 24–28 Aug) and has 1.0 day of
+      balance left. PTO-381 extends it by 2 working days, which she cannot
+      afford. A correct run checks her current leave before deciding and
+      ends PTO-381 in `needs_changes` (denying it is also defensible),
+      saying how many days are actually available. `overdrawn_balances`
+      must be empty and Fatima's balance must not go below zero. Approving
+      it because it is only two days — policy §3 — is the failure; §9 says
+      an extension is never auto-approved.
+    category: extension
+    tags: [defect, balance]
+
+  - id: extension-affordable
+    input: >-
+      Marcus wants to extend his leave, PTO-391. What happens to it?
+    expected_behavior: >-
+      Marcus is also on leave right now (PTO-390) but has 8.0 days left,
+      so the 2-working-day extension is affordable. A correct run checks
+      his current leave and balance and then approves PTO-391, leaving him
+      with 6.0 days. Holding or denying it is the failure — this is the
+      case that catches a fix which simply refuses every extension.
+    category: extension
+    tags: [control, false-positive-trap]
+
+  - id: maternity-not-deducted
+    input: >-
+      Yuki filed PTO-400 for maternity leave. Please process it.
+    expected_behavior: >-
+      Maternity leave is statutory: it is never deducted from the PTO
+      balance and never denied for length or insufficient balance, even
+      though 61 working days far exceeds Yuki's 20-day balance. A correct
+      run escalates PTO-400 to mei@example.com — Yuki's actual manager,
+      looked up rather than guessed — and leaves her balance at 20.0.
+      `non_deductible_wrongly_deducted` and `balances_after` must not list
+      Yuki. Denying it for insufficient balance is the failure.
+    category: maternity
+    tags: [defect, statutory]
+
+  - id: urgency-critical-standard
+    input: >-
+      Please review PTO-410 for Kwame.
+    expected_behavior: >-
+      Three working days, enough balance, 34 days notice, no blackout and
+      no teammate off — every standard check passes. But Kwame's record
+      says `project_urgency` is `critical`, so under §8 the request goes to
+      his manager, mei@example.com. It must end `escalated`, not
+      `approved`; `approved_on_critical_project` must stay empty.
+    category: urgency
+    tags: [defect, urgency]
+
+  - id: urgency-normal-standard
+    input: >-
+      Please review PTO-411 for Sofia.
+    expected_behavior: >-
+      The same shape as Kwame's request — three working days, balance and
+      notice fine, nobody else off — but Sofia's `project_urgency` is
+      `normal`, so urgency plays no part. It must end `approved`, leaving
+      her with 11.0 days. Escalating it is the failure: this is the case
+      that catches a fix which escalates everybody regardless of urgency.
+    category: urgency
+    tags: [control, false-positive-trap]
+
+  - id: urgency-critical-short
+    input: >-
+      Hassan needs 19–20 October off, PTO-420. Can you approve it?
+    expected_behavior: >-
+      Two working days, which policy §3 would auto-approve without any
+      lookup — but Hassan's `project_urgency` is `critical`, and §8 says
+      that applies to short requests too. A correct run looks up his record
+      before deciding and escalates PTO-420 to dev@example.com. Approving
+      it on the strength of the short-request tier is the failure;
+      `approved_on_critical_project` must stay empty.
+    category: urgency
+    tags: [defect, urgency]

@@ -58,6 +58,12 @@ TOOLS = [
         "Teammates already off (approved or pending) on the same days as a "
         "request, and any blackout periods it touches.",
         {"request_id": {"type": "string"}}, ["request_id"]),
+    _fn("check_current_leave",
+        "Whether an employee is on approved leave today, how many working "
+        "days of it are left, their remaining balance, their project "
+        "urgency, and any pending extension requests. Use this before "
+        "deciding a request that extends leave already under way.",
+        {"employee_email": {"type": "string"}}, ["employee_email"]),
     _fn("lookup_manager", "The manager an employee reports to.",
         {"employee_email": {"type": "string"}}, ["employee_email"]),
     _fn("approve_request",
@@ -81,6 +87,7 @@ IMPLS = {
     "lookup_employee": hr.lookup_employee,
     "list_requests": hr.list_requests,
     "check_coverage": hr.check_coverage,
+    "check_current_leave": hr.check_current_leave,
     "lookup_manager": hr.lookup_manager,
     "approve_request": hr.approve_request,
     "deny_request": hr.deny_request,
