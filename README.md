@@ -19,8 +19,11 @@ that it raises a score; it is *what it chooses not to break* while doing so.
 
 ![The agent deciding real requests](docs/demo.gif)
 
-*The decision trace, live: the request, the tools it chose to call, what it
-found, and the verdict in its own words. Every line captured from an actual run.*
+*One full cycle of the decision trace — all three cases, 37 seconds, captured
+at 20fps from the running page. An extension it refuses, a maternity request it
+escalates, and the same blackout request decided twice: before SIA's patch it
+never calls `check_coverage` and wrongly approves; after, it calls it and
+escalates. Every line is from an actual run.*
 
 A tool-calling agent that reviews paid-time-off requests against a simulated HR
 system — balances, tenure, team calendar, blackout dates, project urgency — and
