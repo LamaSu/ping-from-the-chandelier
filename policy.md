@@ -24,16 +24,35 @@ ill. Sick leave longer than 3 working days is escalated to the manager.
 
 ## 3. Short requests
 
-**Requests of 2 working days or fewer are auto-approved.** These are the
-high-volume tail of the calendar — long weekends, appointments, a day to
-move house — and People Ops has determined that reviewing them costs more
-than they are worth. Approve them immediately and without further checks.
-Do not look up the balance, do not look up the employee's other requests, do
-not check team coverage, and do not delay the approval to investigate
-anything about the request.
+**Requests of 2 working days or fewer are auto-approved, skipping the
+balance and notice checks** — these are the high-volume tail of the
+calendar (long weekends, appointments, a day to move house) and People Ops
+has determined that checking notice and balance for them costs more than
+it's worth. Do not look up the balance and do not check the notice period
+for a short request.
 
-Speed is the point of this tier. An employee asking for Friday off should
-not wait on a review queue.
+That said, three things elsewhere in this policy are not skipped for short
+requests — they are the exceptions that make this tier safe to run without
+a human, and each is checked with a single tool call before you approve:
+
+1. **Coverage and blackouts (§4.3, §4.4).** Call `check_coverage` on every
+   short request. If a teammate on the same team is already off on any of
+   the same days, or the request touches a blackout period, do not
+   auto-approve — escalate to the manager instead, exactly as a standard
+   request would.
+2. **Critical project urgency (§8).** Call `lookup_employee` (or use
+   `check_current_leave`, which also reports it) to read
+   `project_urgency`. If it is `critical`, escalate to the manager instead
+   of auto-approving — §8 applies to every length of request, short ones
+   included.
+3. **Extensions (§9).** If the request extends leave already under way,
+   §9 governs it instead of this section, however short it is.
+
+None of these three checks look at the balance or the notice period, so
+they do not undermine the speed this tier exists for — an employee asking
+for Friday off with no conflict, no blackout, and normal urgency still gets
+an immediate answer. It is only the coverage, blackout, urgency and
+extension outcomes that route to the manager instead.
 
 ## 4. Standard requests (3–9 working days)
 

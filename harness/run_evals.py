@@ -93,7 +93,7 @@ def run_agent(case: dict) -> dict:
         return {"output": "", "tokens": None,
                 "error": f"agent stdout was not JSON: {proc.stdout[-300:]}"}
     return {"output": body.get("output") or "", "tokens": body.get("tokens"),
-            "error": body.get("error")}
+            "tool_calls": body.get("tool_calls") or [], "error": body.get("error")}
 
 
 def judge(case: dict, output: str) -> tuple[bool, str]:
@@ -118,6 +118,24 @@ def judge(case: dict, output: str) -> tuple[bool, str]:
     return bool(verdict.get("correct")), str(verdict.get("reason") or "")
 
 
+LEDGER_MARKERS = ("--- HR SYSTEM AFTER THIS REQUEST ---",
+                  "--- LEDGER AFTER THIS REQUEST ---")
+
+
+def extract_ledger(output: str):
+    """The end-state block the agent appends. SIA reads this to see what the
+    run actually changed, so it has to come back as structured data rather
+    than staying buried in the reply text."""
+    for marker in LEDGER_MARKERS:
+        if marker in output:
+            tail = output.split(marker, 1)[1].strip()
+            try:
+                return json.loads(tail[tail.index("{"):tail.rindex("}") + 1])
+            except (ValueError, json.JSONDecodeError):
+                return None
+    return None
+
+
 def score(case: dict) -> dict:
     run = run_agent(case)
     if run.get("error") and not run["output"]:
@@ -125,11 +143,16 @@ def score(case: dict) -> dict:
     else:
         correct, reason = judge(case, run["output"])
     tags = case.get("tags") or []
+    # `output`, `tool_calls` and `ledger` are what SIA reads back to analyse a
+    # run. Without them it reports "no results" even though every case scored.
     return {"question_id": case["id"], "case_id": case["id"],
             "correct": correct, "score": 100.0 if correct else 0.0,
             "category": case.get("category", ""), "tags": tags,
             "kind": "defect" if "defect" in tags else "control",
-            "tokens": run.get("tokens"), "reason": reason}
+            "tokens": run.get("tokens"), "reason": reason,
+            "output": run.get("output") or "",
+            "tool_calls": run.get("tool_calls") or [],
+            "ledger": extract_ledger(run.get("output") or "")}
 
 
 def main() -> int:
