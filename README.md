@@ -77,7 +77,21 @@ Expected: a single JSON object with a populated `output` ending in an
 Each process starts from a pristine copy of the seed data, so runs never
 contaminate each other.
 
-### 5. Run the eval suite
+### 5. Check the suite without a model
+
+This needs no credentials and takes a second. For every case in
+`evals/pto.yaml` it drives `hr.py` to the end state the case calls correct and
+asserts the invariants the case names — catching an expectation the HR system
+cannot actually satisfy:
+
+```bash
+.venv/bin/python tests/test_policy_oracle.py
+```
+
+It validates the *cases*, not the agent. A green run means the suite is
+self-consistent, not that the agent passes it.
+
+### 6. Run the eval suite
 
 ```bash
 sia login --foundry https://sia.hexo.ai --device
@@ -127,6 +141,7 @@ real protection.
 | `prompts.py` | thin wrapper that mounts `policy.md` as the system prompt |
 | `evals/pto.yaml` | the eval suite — 21 cases |
 | `CONTRACT.md` | what `sia evals run` requires of `agent.py` |
+| `tests/test_policy_oracle.py` | credential-free check that every eval case is satisfiable |
 
 ## The HR system
 
