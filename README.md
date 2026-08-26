@@ -154,12 +154,65 @@ real protection.
 
 ## The HR system
 
-20 employees across 8 teams (Engineering, Design, Sales, Support, Data,
-Platform, Marketing, Ops), reporting to 4 managers. Each record carries a team,
-manager, start date, PTO balance, and a `project_urgency` of `normal` or
-`critical`. Tenure and probation are computed against a fixed `TODAY` of
-2026-08-25 so runs stay deterministic.
+`hr.py` is a self-contained, in-memory HR system — the world the agent acts on.
+No database, no network, no fixtures to load. It is deliberately small enough to
+read in one sitting and rigged so that a plausible-but-wrong decision leaves a
+visible mark.
 
-Leave types: `vacation`, `personal` (both deducted), `sick` and `maternity`
-(neither deducted). Two employees are on approved leave *right now* and have
-pending extension requests — one affordable, one not.
+**People — 20 employees, 8 teams, 4 managers**
+
+- Teams: Engineering (3), Sales (3), Support (3), Data (3), Ops (3),
+  Platform (2), Marketing (2), Design (1). Uneven on purpose — a one-person
+  team can never have a coverage conflict, a three-person team can.
+- Every record carries `name`, `team`, `manager`, `start_date`, `balance_days`
+  and `project_urgency`.
+- `project_urgency` is `normal` (16 people) or `critical` (4). Critical means
+  the team cannot absorb an unplanned absence, so leave goes to the manager —
+  however short the request.
+- Tenure and probation are **derived**, not stored: computed against a fixed
+  `TODAY` of 2026-08-25 with a 90-day bar, so every run is deterministic and
+  "is this person still on probation" is never a stale field.
+
+**Leave — 24 requests, 4 types**
+
+- Types: `vacation` (20), `sick` (2), `maternity` (1), `personal` (1).
+- `vacation` and `personal` come out of the balance. `sick` and `maternity`
+  never do — that distinction is what several eval cases turn on.
+- Statuses: `submitted` and `approved` are seeded; a decision moves a request
+  to `approved`, `denied`, `needs_changes` or `escalated`.
+- Leave is counted in **working days** (Mon–Fri), so a Friday-to-Monday
+  request is two days, not four.
+- Two blackout periods: Product launch week (Sep 14–18) and Year-end close
+  (Dec 28–31).
+- **Two employees are on approved leave right now**, mid-request, each with a
+  pending extension (`extends` points at the original). Fatima has 1.0 day left
+  and asks for 2; Marcus has 8.0 and asks for 2. Same shape, opposite answer —
+  the pair exists so a fix cannot pass by refusing every extension.
+
+**Tools — 11, split by what they can break**
+
+- Six read-only: `lookup_request`, `lookup_employee`, `list_requests`,
+  `check_coverage`, `check_current_leave`, `lookup_manager`.
+- One corrective: `amend_request` — fixes the dates on an undecided request
+  when someone needs a span the filed request does not cover.
+- Four decisions: `approve_request`, `deny_request`, `request_changes`,
+  `escalate_request`. These move balances and the team calendar.
+
+**Guarantees that make the evals trustworthy**
+
+- **Isolation.** Every agent process starts from a `deepcopy` of the seed, so
+  one eval case can never see another's approvals. The harness runs one process
+  per case.
+- **No silent double-spend.** Re-deciding an already-decided request returns an
+  error rather than overwriting — an agent that approves the same leave twice
+  finds out.
+- **Explicit accounting.** Each mutation records `leave_type`, `deducted_days`,
+  `deductible` and `balance_after`. `deducted_days` is stated outright because
+  `balance_after` alone is ambiguous for non-deductible leave — an unchanged
+  balance once read as a deduction and failed a passing case.
+- **The end state is printed, not implied.** `ledger_summary()` returns
+  `mutations`, `final_status`, `balances_after`, `approved_days_this_run` plus
+  four tripwires the judge scores directly: `overdrawn_balances`,
+  `same_team_double_bookings`, `approved_during_blackout` and
+  `non_deductible_wrongly_deducted`. The judge only ever sees the agent's text,
+  so the agent appends this block to every reply.
