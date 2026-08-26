@@ -1,7 +1,25 @@
 # PTO approver agent
 
-*Built at the **AWS × SIA hackathon**, using [SIA Foundry](https://sia.hexo.ai)
-to find and fix the agent's own failure modes.*
+*Built at the **AWS × SIA hackathon**.*
+
+## Self-improving agents
+
+This repo is a worked example of a **self-improving agent loop**: an agent that
+is measured against an eval suite, has its own failure modes diagnosed, and gets
+patched — by another agent — without a human writing the fix.
+
+The loop is `run → detect → propose → apply → re-run`, driven by
+[SIA Foundry](https://sia.hexo.ai). SIA reads the agent's source and its scored
+run, classifies what went wrong, and writes a diff. The interesting part is not
+that it raises a score; it is *what it chooses not to break* while doing so.
+
+> **Paper:** [SIA: Self Improving AI with Harness & Weight Updates](https://arxiv.org/abs/2605.27276)
+> (Hebbar et al., 2026) · [arXiv:2605.27276](https://arxiv.org/pdf/2605.27276) ·
+> open-source framework at [hexo-ai/sia](https://github.com/hexo-ai/sia)
+
+![The agent deciding real requests](docs/demo.gif)
+
+*The agent deciding live requests — every line captured from an actual run.*
 
 A tool-calling agent that reviews paid-time-off requests against a simulated HR
 system — balances, tenure, team calendar, blackout dates, project urgency — and
@@ -312,6 +330,43 @@ Four of these are explicit traps for a lazy fix: `cross-team-overlap`,
 all break if a patch "solves" the defects by escalating everything or refusing
 every extension.
 
+## What SIA found
+
+Four scored runs in SIA Foundry, $1.62 of judge and analysis spend total.
+
+![SIA Foundry overview](docs/sia-overview.png)
+
+**Score 90/100, +15 against the previous run, across 21 cases.** The "dirty"
+badge is honest — SIA measured a working tree with uncommitted changes, which it
+flags rather than attributing the score to a commit.
+
+![Run history](docs/sia-runs.png)
+
+The run history shows why the eval-set plumbing mattered: `baseline` and
+`baseline-run2` scored **0 cases** — SIA ran the harness but could not read the
+results back, because our runner omitted the `output`, `tool_calls` and `ledger`
+fields its own `eval.py` writes. `baseline-run3` scored 12 cases, `baseline-run4`
+scored 21 once the full corpus was restored.
+
+![Detected failure modes](docs/sia-failures.png)
+
+Two failure modes, each with the evidence quote that triggered it:
+
+- **`f_hallucinated_answer` (high)** — on `sick-over-threshold` the agent said
+  *"No days have been deducted yet — that will happen once the manager decides,"*
+  implying sick leave would eventually be deducted. The ledger was correct; the
+  prose was not. SIA patched §2 to forbid that phrasing.
+- **`f_eval_too_strict` (low)** — SIA argued that on `already-approved-recheck`
+  the agent's answer *"matches the yaml's own accepted outcomes… yet it scored
+  0."* It declined to patch this one, since `--mode eval` is not built yet.
+  Worth noting SIA will push back on the *eval* rather than the agent.
+
+![The eval set as SIA sees it](docs/sia-evalset.png)
+
+Each case reaches SIA as an input, an `expected_answer`, and structured
+`criteria` — status assertions, balance equality, empty-list tripwires — so the
+judge grades the end state rather than the wording.
+
 ## Results across iterations
 
 Every row is a real scored run. The suite grew from 15 to 21 cases at run 2, so
@@ -323,6 +378,12 @@ compare the rate rather than the raw count.
 | 2 | 4 hand fixes | 17/21 · **81%** | 12/12 | 5/9 | `deducted_days` accounting, a prompt rule that a stated decision must be a tool call, and the missing `amend_request` tool; suite grew to 21 |
 | 3 | SIA patch p1 | 20/21 · **95%** | 12/12 | 8/9 | SIA rewrote §3 — kept the balance/notice skip, carved out coverage, urgency and extensions |
 | 4 | SIA round 2 | 20/21 · **95%** | 12/12 | 8/9 | SIA fixed a sick-leave narration bug in §2; no score change, the ledger was already right |
+| 5 | pending-claim rule | 21/21 · **100%** | 12/12 | 9/9 | `lookup_request` now reports earlier pending requests that already claim the balance; §4.1 judges against that |
+
+**Caveat on run 5:** 21/21 is a *best* run, not a stable one. An immediate
+re-run scored 19/21 with two different controls failing. The suite has real
+run-to-run variance at this model and temperature, so quote it as
+"21/21 at best, typically 19–20/21" rather than as a solved agent.
 
 Two of the four failures fixed at step 2 were **not agent faults at all** — one
 was ambiguous accounting the judge misread, one was an eval written against a
@@ -334,8 +395,9 @@ cases that all trace to the same §3 loophole, the obvious fix is to delete the
 SIA did not. It kept the balance and notice skip that makes the tier fast and
 added only the three checks that make it safe. Zero controls regressed.
 
-**Still open.** `stack-reverse-order` needs the agent to reason about *another
-pending request* rather than look something up, which is why the §3 fix did not
-reach it. SIA classified it as `eval_too_strict` rather than proposing a patch —
-a call worth arguing with, since approving PTO-302 while PTO-301 is pending
-really does commit 4 days against a 3-day balance.
+**Closed in step 5.** `stack-reverse-order` needed the agent to reason about
+*another pending request* rather than look something up, which is why the §3 fix
+did not reach it. Fixed by hand: `lookup_request` now reports the earlier
+pending requests that already have a claim on the balance, and §4.1 judges
+against that. See *What SIA found* below for the two regressions that fix
+caused.
