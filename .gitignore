@@ -1,8 +1,7 @@
 __pycache__/
 
-# SIA CLI — derived artifacts. The tracked eval set lives in `evals/`, and
-# `scripts/install_evalset.py` copies it in here after `sia init`.
-.sia/
+# SIA CLI — config.toml and settings.json are tracked (project wiring
+# and the tool-permission policy). Everything derived below is not.
 
 # SIA CLI — derived artifacts (eval sets and environments stay tracked)
 .sia/traces/
