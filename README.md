@@ -1,5 +1,8 @@
 # PTO approver agent
 
+*Built at the **AWS × SIA hackathon**, using [SIA Foundry](https://sia.hexo.ai)
+to find and fix the agent's own failure modes.*
+
 A tool-calling agent that reviews paid-time-off requests against a simulated HR
 system — balances, tenure, team calendar, blackout dates, project urgency — and
 posts a decision. Structured to the SIA command-adapter contract (see
